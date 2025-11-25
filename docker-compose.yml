@@ -1,0 +1,447 @@
+services:
+  # ============================================
+  # GATEWAY - Reverse Proxy
+  # ============================================
+  caddy:
+    image: caddy:latest
+    container_name: omni-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./docker/caddy/Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - public_net
+      - internal_net
+
+  # ============================================
+  # MANAGEMENT - Container & Log Management
+  # ============================================
+  portainer:
+    image: portainer/portainer-ce:latest
+    container_name: omni-portainer
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - portainer_data:/data
+    networks:
+      - public_net
+
+  dozzle:
+    image: amir20/dozzle:latest
+    container_name: omni-dozzle
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - public_net
+
+  # ============================================
+  # SUPABASE - Full Stack
+  # ============================================
+  supabase-studio:
+    image: supabase/studio:20241029-46e1e40
+    container_name: omni-supabase-studio
+    restart: unless-stopped
+    healthcheck:
+      disable: true
+    environment:
+      SUPABASE_URL: http://kong:8000
+      SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
+      STUDIO_PG_META_URL: http://meta:8080
+    networks:
+      - public_net
+      - internal_net
+    depends_on:
+      - kong
+
+  kong:
+    image: kong:2.8.1
+    container_name: omni-supabase-kong
+    restart: unless-stopped
+    environment:
+      KONG_DATABASE: "off"
+      KONG_DECLARATIVE_CONFIG: /var/lib/kong/kong.yml
+      KONG_DNS_ORDER: LAST,A,CNAME
+      KONG_PLUGINS: request-transformer,cors,key-auth,acl
+    volumes:
+      - ./docker/supabase/kong.yml:/var/lib/kong/kong.yml:ro
+    networks:
+      - internal_net
+
+  supabase-auth:
+    image: supabase/gotrue:v2.182.1
+    container_name: omni-supabase-auth
+    restart: unless-stopped
+    environment:
+      GOTRUE_API_HOST: 0.0.0.0
+      GOTRUE_API_PORT: 9999
+      API_EXTERNAL_URL: ${API_EXTERNAL_URL:-http://localhost}
+      GOTRUE_DB_DRIVER: postgres
+      GOTRUE_DB_DATABASE_URL: postgres://supabase_auth_admin:${POSTGRES_PASSWORD}@db:5432/postgres
+      GOTRUE_SITE_URL: ${SITE_URL:-http://localhost}
+      GOTRUE_URI_ALLOW_LIST: ${ADDITIONAL_REDIRECT_URLS}
+      GOTRUE_DISABLE_SIGNUP: ${DISABLE_SIGNUP:-false}
+      GOTRUE_JWT_ADMIN_ROLES: service_role
+      GOTRUE_JWT_AUD: authenticated
+      GOTRUE_JWT_DEFAULT_GROUP_NAME: authenticated
+      GOTRUE_JWT_EXP: ${JWT_EXPIRY:-3600}
+      GOTRUE_JWT_SECRET: ${JWT_SECRET}
+      GOTRUE_EXTERNAL_EMAIL_ENABLED: ${ENABLE_EMAIL_SIGNUP:-true}
+      GOTRUE_MAILER_AUTOCONFIRM: ${ENABLE_EMAIL_AUTOCONFIRM:-true}
+    networks:
+      - internal_net
+    depends_on:
+      - db
+
+  supabase-rest:
+    image: postgrest/postgrest:v13.0.7
+    container_name: omni-supabase-rest
+    restart: unless-stopped
+    environment:
+      PGRST_DB_URI: postgres://authenticator:${POSTGRES_PASSWORD}@db:5432/postgres
+      PGRST_DB_SCHEMAS: ${PGRST_DB_SCHEMAS:-public,storage,graphql_public}
+      PGRST_DB_ANON_ROLE: anon
+      PGRST_JWT_SECRET: ${JWT_SECRET}
+      PGRST_DB_USE_LEGACY_GUCS: "false"
+    networks:
+      - internal_net
+    depends_on:
+      - db
+
+  supabase-realtime:
+    image: supabase/realtime:v2.63.0
+    container_name: omni-supabase-realtime
+    restart: unless-stopped
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_USER: supabase_admin
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      DB_NAME: postgres
+      DB_SSL: "false"
+      PORT: 4000
+      JWT_SECRET: ${JWT_SECRET}
+      REPLICATION_MODE: RLS
+      REPLICATION_POLL_INTERVAL: 100
+      SECURE_CHANNELS: "true"
+      SLOT_NAME: supabase_realtime_rls
+      TEMPORARY_SLOT: "true"
+    networks:
+      - internal_net
+    depends_on:
+      - db
+
+  db:
+    image: supabase/postgres:15.8.1.085
+    container_name: omni-supabase-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_HOST: /var/run/postgresql
+      POSTGRES_PORT: 5432
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: postgres
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/init-scripts:/docker-entrypoint-initdb.d
+    networks:
+      - internal_net
+    expose:
+      - "5432"
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  supabase-storage:
+    image: supabase/storage-api:v1.29.0
+    container_name: omni-supabase-storage
+    restart: unless-stopped
+    environment:
+      ANON_KEY: ${SUPABASE_ANON_KEY}
+      SERVICE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
+      POSTGREST_URL: http://rest:3000
+      PGRST_JWT_SECRET: ${JWT_SECRET}
+      DATABASE_URL: postgres://supabase_storage_admin:${POSTGRES_PASSWORD}@db:5432/postgres
+      FILE_SIZE_LIMIT: 52428800
+      STORAGE_BACKEND: file
+      FILE_STORAGE_BACKEND_PATH: /var/lib/storage
+      TENANT_ID: stub
+      REGION: stub
+      GLOBAL_S3_BUCKET: stub
+    volumes:
+      - storage_data:/var/lib/storage
+    networks:
+      - internal_net
+    depends_on:
+      - db
+      - supabase-rest
+
+  meta:
+    image: supabase/postgres-meta:v0.93.1
+    container_name: omni-supabase-meta
+    restart: unless-stopped
+    environment:
+      PG_META_PORT: 8080
+      PG_META_DB_HOST: db
+      PG_META_DB_PORT: 5432
+      PG_META_DB_NAME: postgres
+      PG_META_DB_USER: supabase_admin
+      PG_META_DB_PASSWORD: ${POSTGRES_PASSWORD}
+    networks:
+      - internal_net
+    depends_on:
+      - db
+
+  # ============================================
+  # NEO4J - Graph Database
+  # ============================================
+  neo4j:
+    image: neo4j:community
+    container_name: omni-neo4j
+    restart: unless-stopped
+    ports:
+      - "7474:7474"  # HTTP Browser access
+      - "7687:7687"  # Bolt protocol
+    environment:
+      NEO4J_AUTH: ${NEO4J_AUTH}
+      NEO4J_PLUGINS: '["apoc", "graph-data-science"]'
+      NEO4J_dbms_security_procedures_unrestricted: apoc.*,gds.*
+      NEO4J_dbms_security_procedures_allowlist: apoc.*,gds.*
+    volumes:
+      - neo4j_data:/data
+      - neo4j_logs:/logs
+    networks:
+      - public_net
+      - internal_net
+
+  # ============================================
+  # FEATBIT - Feature Flags
+  # ============================================
+  featbit-redis:
+    image: redis:alpine
+    container_name: omni-featbit-redis
+    restart: unless-stopped
+    networks:
+      - internal_net
+
+  featbit-mongo:
+    image: mongo:latest
+    container_name: omni-featbit-mongo
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - featbit_mongo_data:/data/db
+    networks:
+      - internal_net
+
+  featbit-ui:
+    image: featbit/featbit-ui:latest
+    container_name: omni-featbit-ui
+    restart: unless-stopped
+    environment:
+      API_URL: http://featbit-api:5000
+    networks:
+      - public_net
+      - internal_net
+    depends_on:
+      - featbit-api
+
+  featbit-api:
+    image: featbit/featbit-api-server:latest
+    container_name: omni-featbit-api
+    restart: unless-stopped
+    environment:
+      MONGODB_URI: mongodb://admin:${POSTGRES_PASSWORD}@featbit-mongo:27017
+      REDIS_HOST: featbit-redis
+      REDIS_PORT: 6379
+    networks:
+      - internal_net
+    depends_on:
+      - featbit-redis
+      - featbit-mongo
+
+  # ============================================
+  # ARIZE PHOENIX - LLM Tracing
+  # ============================================
+  phoenix:
+    image: arizephoenix/phoenix:latest
+    container_name: omni-phoenix
+    restart: unless-stopped
+    environment:
+      PHOENIX_WORKING_DIR: /data
+    volumes:
+      - phoenix_data:/data
+    networks:
+      - public_net
+      - internal_net
+
+  # ============================================
+  # AUTOMATION - n8n Workflow Engine
+  # ============================================
+  redis:
+    image: redis:alpine
+    container_name: omni-redis
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    networks:
+      - internal_net
+
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: omni-n8n
+    restart: unless-stopped
+    environment:
+      N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY}
+      EXECUTIONS_MODE: queue
+      QUEUE_BULL_REDIS_HOST: redis
+      QUEUE_BULL_REDIS_PORT: 6379
+      N8N_HOST: n8n.app.localhost
+      N8N_PORT: 5678
+      N8N_PROTOCOL: http
+      WEBHOOK_URL: http://n8n.app.localhost
+    volumes:
+      - n8n_data:/home/node/.n8n
+      - ./docker/n8n:/files
+    networks:
+      - public_net
+      - internal_net
+    depends_on:
+      - redis
+
+  n8n-worker:
+    image: n8nio/n8n:latest
+    container_name: omni-n8n-worker
+    restart: unless-stopped
+    command: n8n worker
+    environment:
+      N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY}
+      EXECUTIONS_MODE: queue
+      QUEUE_BULL_REDIS_HOST: redis
+      QUEUE_BULL_REDIS_PORT: 6379
+    volumes:
+      - n8n_data:/home/node/.n8n
+      - ./docker/n8n:/files
+    networks:
+      - internal_net
+    depends_on:
+      - redis
+
+  # ============================================
+  # PRIVATE BACKEND TOOLS - Internal Only
+  # ============================================
+  searxng:
+    image: searxng/searxng:latest
+    container_name: omni-searxng
+    restart: unless-stopped
+    volumes:
+      - ./docker/searxng:/etc/searxng:rw
+    networks:
+      - public_net
+      - internal_net
+
+  # ============================================
+  # APPLICATION - Backend
+  # ============================================
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: omni-backend
+    restart: unless-stopped
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      DEEPGRAM_API_KEY: ${DEEPGRAM_API_KEY}
+      SUPABASE_URL: http://kong:8000
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
+      LIVEKIT_URL: ${LIVEKIT_URL}
+      LIVEKIT_API_KEY: ${LIVEKIT_API_KEY}
+      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET}
+      NEO4J_URI: ${NEO4J_URI}
+      NEO4J_USER: ${NEO4J_USER}
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD}
+    networks:
+      - public_net
+      - internal_net
+    depends_on:
+      - db
+      - kong
+    expose:
+      - "8000"
+
+  # ============================================
+  # APPLICATION - Frontend
+  # ============================================
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY}
+    container_name: omni-frontend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      NEXT_PUBLIC_SUPABASE_URL: https://api.app.localhost
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY}
+      NEXT_PUBLIC_LIVEKIT_URL: wss://livekit.app.localhost
+    networks:
+      - public_net
+    expose:
+      - "3000"
+
+  # ============================================
+  # LIVEKIT - Real-Time Voice
+  # ============================================
+  livekit:
+    image: livekit/livekit-server:latest
+    container_name: omni-livekit
+    restart: unless-stopped
+    command: --config /etc/livekit.yaml
+    volumes:
+      - ./docker/livekit/livekit.yaml:/etc/livekit.yaml
+    ports:
+      - "7880:7880"
+      - "7881:7881"
+      - "40000-40100:40000-40100/udp"
+    networks:
+      - public_net
+    environment:
+      - LIVEKIT_API_KEY=${LIVEKIT_API_KEY}
+      - LIVEKIT_API_SECRET=${LIVEKIT_API_SECRET}
+
+
+# ============================================
+# NETWORKS
+# ============================================
+networks:
+  public_net:
+    driver: bridge
+  internal_net:
+    driver: bridge
+    internal: true
+
+# ============================================
+# VOLUMES
+# ============================================
+volumes:
+  caddy_data:
+  caddy_config:
+  portainer_data:
+  postgres_data:
+  storage_data:
+  neo4j_data:
+  neo4j_logs:
+  featbit_mongo_data:
+  phoenix_data:
+  redis_data:
+  n8n_data:

@@ -1,0 +1,67 @@
+# ============================================
+# FRONTEND APPLICATION
+# ============================================
+app.localhost {
+    reverse_proxy frontend:3000
+}
+
+# ============================================
+# BACKEND API (Future)
+# ============================================
+api.localhost {
+    reverse_proxy backend:8000
+}
+
+# ============================================
+# MANAGEMENT INTERFACES
+# ============================================
+
+# Supabase Studio
+studio.app.localhost {
+    reverse_proxy supabase-studio:3000
+}
+
+# Supabase API Gateway (Kong)
+supabase.app.localhost {
+    reverse_proxy kong:8000
+}
+
+# Neo4j Browser
+neo4j.app.localhost {
+    reverse_proxy neo4j:7474
+}
+
+# Neo4j Bolt Protocol
+bolt.app.localhost {
+    reverse_proxy neo4j:7687
+}
+
+# n8n Workflow Automation
+n8n.app.localhost {
+    reverse_proxy n8n:5678
+}
+
+# Portainer Container Management
+portainer.app.localhost {
+    reverse_proxy portainer:9000
+}
+
+# Dozzle Log Viewer
+logs.app.localhost {
+    reverse_proxy dozzle:8080
+}
+
+# FeatBit Feature Flags
+flags.app.localhost {
+    reverse_proxy featbit-ui:80
+}
+
+# Arize Phoenix LLM Tracing
+trace.app.localhost {
+    reverse_proxy phoenix:6006
+}
+
+# LiveKit Real-Time Voice
+livekit.app.localhost {
+    reverse_proxy livekit:7880
+}
