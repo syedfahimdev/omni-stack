@@ -2,29 +2,33 @@
 
 ## Prerequisites
 - Railway account (linked via CLI)
-- GitHub repository connected
+- GitHub repository: `syedfahimdev/omni-stack`
 
-## Setup Steps
+## Quick Setup via Railway Dashboard
 
-### 1. Connect GitHub Repository to Railway
+### Option 1: GitHub Integration (Recommended)
 1. Go to [Railway Dashboard](https://railway.app)
-2. Select your project: `clever-wisdom`
-3. Click "New" → "GitHub Repo"
-4. Select `syedfahimdev/omni-stack`
-5. Railway will auto-detect services from `railway.toml` files
+2. Click "New Project"
+3. Select "Deploy from GitHub repo"
+4. Choose `syedfahimdev/omni-stack`
+5. Railway will auto-detect services from the repository structure
 
-### 2. Create Services Manually (if auto-detection doesn't work)
-1. In Railway dashboard, click "New" → "Empty Service"
-2. For Backend:
+### Option 2: Manual Service Creation
+1. Go to [Railway Dashboard](https://railway.app)
+2. Select your project: `clever-wisdom` (or create new)
+3. Click "New" → "Empty Service"
+4. For Backend:
    - Name: `omni-backend`
+   - Connect to GitHub repo: `syedfahimdev/omni-stack`
    - Root Directory: `/backend`
-   - Dockerfile: `backend/Dockerfile`
-   - Port: `8000`
-3. For Frontend:
+   - Dockerfile Path: `backend/Dockerfile`
+   - Port: `8000` (Railway auto-detects)
+5. For Frontend:
    - Name: `omni-frontend`
+   - Connect to GitHub repo: `syedfahimdev/omni-stack`
    - Root Directory: `/frontend`
-   - Dockerfile: `frontend/Dockerfile`
-   - Port: `3000`
+   - Dockerfile Path: `frontend/Dockerfile`
+   - Port: `3000` (Railway auto-detects)
 
 ### 3. Set Environment Variables
 Set these in Railway dashboard for each service:
