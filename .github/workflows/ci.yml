@@ -26,8 +26,13 @@ jobs:
         run: |
           python -m py_compile backend/tests/system_audit.py
           python -m py_compile backend/main.py
-          python -m py_compile backend/core/*.py
-          python -m py_compile backend/tools/*.py
+          python -m py_compile backend/core/config_loader.py
+          python -m py_compile backend/core/orchestrator.py
+          python -m py_compile backend/core/tool_factory.py
+          python -m py_compile backend/tools/n8n_bridge.py
+          python -m py_compile backend/tools/scraper.py
+          python -m py_compile backend/tools/search.py
+          python -m py_compile backend/voice_agent.py
 
   test-frontend:
     runs-on: ubuntu-latest

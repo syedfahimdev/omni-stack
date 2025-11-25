@@ -3,10 +3,13 @@ name: Deploy to Railway
 on:
   push:
     branches: [main]
+  workflow_dispatch: # Allow manual triggering
 
 jobs:
   deploy-backend:
     runs-on: ubuntu-latest
+    # Only run if secrets are configured
+    if: ${{ secrets.RAILWAY_TOKEN != '' && secrets.RAILWAY_BACKEND_SERVICE_ID != '' }}
     steps:
       - uses: actions/checkout@v4
       
@@ -25,6 +28,8 @@ jobs:
 
   deploy-frontend:
     runs-on: ubuntu-latest
+    # Only run if secrets are configured
+    if: ${{ secrets.RAILWAY_TOKEN != '' && secrets.RAILWAY_FRONTEND_SERVICE_ID != '' }}
     steps:
       - uses: actions/checkout@v4
       
@@ -40,4 +45,18 @@ jobs:
           railway up --service ${{ secrets.RAILWAY_FRONTEND_SERVICE_ID }}
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+
+  skip-deployment:
+    runs-on: ubuntu-latest
+    if: ${{ secrets.RAILWAY_TOKEN == '' || secrets.RAILWAY_BACKEND_SERVICE_ID == '' || secrets.RAILWAY_FRONTEND_SERVICE_ID == '' }}
+    steps:
+      - name: Skip Deployment
+        run: |
+          echo "⚠️ Railway deployment skipped - Required secrets not configured"
+          echo "Please configure the following secrets in GitHub:"
+          echo "  - RAILWAY_TOKEN"
+          echo "  - RAILWAY_BACKEND_SERVICE_ID"
+          echo "  - RAILWAY_FRONTEND_SERVICE_ID"
+          echo ""
+          echo "See RAILWAY_DEPLOYMENT.md for setup instructions"
 
