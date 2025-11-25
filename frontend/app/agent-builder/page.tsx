@@ -57,8 +57,10 @@ export default function AgentBuilder() {
     }, []);
 
     useEffect(() => {
+        // Fetch agents on mount - setState happens asynchronously in fetchAgents
+        // eslint-disable-next-line react-hooks/exhaustive-deps
         fetchAgents();
-    }, [fetchAgents]);
+    }, []);
 
     const handleSave = async () => {
         setIsSaving(true);

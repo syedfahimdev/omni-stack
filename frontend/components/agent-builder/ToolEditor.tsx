@@ -44,15 +44,20 @@ export default function ToolEditor({ tool, onChange, onDelete, index }: ToolEdit
         return [];
     }, [tool.arguments]);
 
-    const [argsList, setArgsList] = useState<ToolArgument[]>(argsListFromProps);
+    // Initialize state from props, use key to reset when tool changes externally
+    const [argsList, setArgsList] = useState<ToolArgument[]>(() => argsListFromProps);
 
-    // Sync props to local state only when props change externally
+    // Sync props to local state only when props change externally (not from internal updates)
     useEffect(() => {
         if (isInternalUpdate.current) {
             isInternalUpdate.current = false;
             return;
         }
-        setArgsList(argsListFromProps);
+        // Use setTimeout to avoid synchronous setState in effect
+        const timeoutId = setTimeout(() => {
+            setArgsList(argsListFromProps);
+        }, 0);
+        return () => clearTimeout(timeoutId);
     }, [argsListFromProps]);
 
     const updateTool = (updates: Partial<CustomTool>) => {
