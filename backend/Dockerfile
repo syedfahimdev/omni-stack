@@ -9,9 +9,10 @@ RUN apt-get update && apt-get install -y \
 
 # Copy requirements first for caching
 COPY requirements.txt .
-# Upgrade pip and use legacy resolver to avoid long backtracking
+# Upgrade pip to latest for better dependency resolution
+# Install packages with pinned versions to avoid backtracking
 RUN pip install --upgrade pip setuptools wheel && \
-    pip install --no-cache-dir --use-deprecated=legacy-resolver -r requirements.txt
+    pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
 COPY . .
