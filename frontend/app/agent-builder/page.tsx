@@ -1,6 +1,9 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+
+// Force dynamic rendering to avoid build-time errors
+export const dynamic = 'force-dynamic';
 import { supabase } from "@/lib/supabase";
 import { motion } from "framer-motion";
 import { Plus, Save, Bot, Settings, Trash2 } from "lucide-react";
