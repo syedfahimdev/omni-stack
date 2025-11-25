@@ -48,16 +48,14 @@ export default function ToolEditor({ tool, onChange, onDelete, index }: ToolEdit
     const [argsList, setArgsList] = useState<ToolArgument[]>(() => argsListFromProps);
 
     // Sync props to local state only when props change externally (not from internal updates)
+    // This is necessary to convert JSON Schema props to editable list format
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     useEffect(() => {
         if (isInternalUpdate.current) {
             isInternalUpdate.current = false;
             return;
         }
-        // Use setTimeout to avoid synchronous setState in effect
-        const timeoutId = setTimeout(() => {
-            setArgsList(argsListFromProps);
-        }, 0);
-        return () => clearTimeout(timeoutId);
+        setArgsList(argsListFromProps);
     }, [argsListFromProps]);
 
     const updateTool = (updates: Partial<CustomTool>) => {
