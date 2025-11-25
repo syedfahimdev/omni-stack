@@ -49,12 +49,12 @@ export default function ToolEditor({ tool, onChange, onDelete, index }: ToolEdit
 
     // Sync props to local state only when props change externally (not from internal updates)
     // This is necessary to convert JSON Schema props to editable list format
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     useEffect(() => {
         if (isInternalUpdate.current) {
             isInternalUpdate.current = false;
             return;
         }
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setArgsList(argsListFromProps);
     }, [argsListFromProps]);
 
