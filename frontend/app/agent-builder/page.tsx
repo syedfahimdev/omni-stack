@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 import { motion } from "framer-motion";
 import { Plus, Save, Bot, Settings, Trash2 } from "lucide-react";
@@ -38,11 +38,7 @@ export default function AgentBuilder() {
     const [isLoading, setIsLoading] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
 
-    useEffect(() => {
-        fetchAgents();
-    }, []);
-
-    const fetchAgents = async () => {
+    const fetchAgents = useCallback(async () => {
         setIsLoading(true);
         const { data, error } = await supabase
             .from("agent_configs")
@@ -55,7 +51,11 @@ export default function AgentBuilder() {
             setAgents(data || []);
         }
         setIsLoading(false);
-    };
+    }, []);
+
+    useEffect(() => {
+        fetchAgents();
+    }, [fetchAgents]);
 
     const handleSave = async () => {
         setIsSaving(true);

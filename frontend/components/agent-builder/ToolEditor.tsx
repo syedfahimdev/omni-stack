@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { Trash2, Plus, X, ChevronDown, ChevronUp } from "lucide-react";
 
 interface ToolArgument {
@@ -7,13 +7,18 @@ interface ToolArgument {
     description: string;
 }
 
+interface JsonSchemaProperty {
+    type: "string" | "integer" | "boolean";
+    description?: string;
+}
+
 export interface CustomTool {
     name: string;
     description: string;
     webhook_url: string;
     auth_header_name?: string;
     auth_header_value?: string;
-    arguments: Record<string, any>; // JSON Schema properties
+    arguments: Record<string, JsonSchemaProperty>; // JSON Schema properties
 }
 
 interface ToolEditorProps {
@@ -25,27 +30,30 @@ interface ToolEditorProps {
 
 export default function ToolEditor({ tool, onChange, onDelete, index }: ToolEditorProps) {
     const [isExpanded, setIsExpanded] = useState(true);
-    const [argsList, setArgsList] = useState<ToolArgument[]>([]);
     const isInternalUpdate = useRef(false);
 
-    // Convert JSON Schema properties back to list for editing
+    // Convert JSON Schema properties back to list for editing - use useMemo to derive state
+    const argsListFromProps = useMemo(() => {
+        if (tool.arguments && Object.keys(tool.arguments).length > 0) {
+            return Object.entries(tool.arguments).map(([key, value]: [string, JsonSchemaProperty]) => ({
+                name: key,
+                type: value.type || "string",
+                description: value.description || "",
+            }));
+        }
+        return [];
+    }, [tool.arguments]);
+
+    const [argsList, setArgsList] = useState<ToolArgument[]>(argsListFromProps);
+
+    // Sync props to local state only when props change externally
     useEffect(() => {
         if (isInternalUpdate.current) {
             isInternalUpdate.current = false;
             return;
         }
-
-        if (tool.arguments && Object.keys(tool.arguments).length > 0) {
-            const list: ToolArgument[] = Object.entries(tool.arguments).map(([key, value]: [string, any]) => ({
-                name: key,
-                type: value.type || "string",
-                description: value.description || "",
-            }));
-            setArgsList(list);
-        } else {
-            setArgsList([]);
-        }
-    }, [tool.arguments]); // Only run when tool.arguments changes externally (or init) - careful with loops
+        setArgsList(argsListFromProps);
+    }, [argsListFromProps]);
 
     const updateTool = (updates: Partial<CustomTool>) => {
         onChange({ ...tool, ...updates });
@@ -53,7 +61,7 @@ export default function ToolEditor({ tool, onChange, onDelete, index }: ToolEdit
 
     const updateArguments = (newArgsList: ToolArgument[]) => {
         // Convert list back to JSON Schema properties
-        const properties: Record<string, any> = {};
+        const properties: Record<string, JsonSchemaProperty> = {};
         newArgsList.forEach((arg) => {
             if (arg.name) {
                 properties[arg.name] = {
@@ -206,7 +214,7 @@ export default function ToolEditor({ tool, onChange, onDelete, index }: ToolEdit
                                     />
                                     <select
                                         value={arg.type}
-                                        onChange={(e) => updateArgumentRow(idx, "type", e.target.value as any)}
+                                        onChange={(e) => updateArgumentRow(idx, "type", e.target.value)}
                                         className="w-1/4 rounded border border-zinc-800 bg-zinc-900 px-2 py-1 text-xs focus:border-blue-600 focus:outline-none"
                                     >
                                         <option value="string">String</option>
